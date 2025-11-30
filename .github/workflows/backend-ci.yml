@@ -48,9 +48,9 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
+          --health-interval=5s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
@@ -59,8 +59,14 @@ jobs:
         with:
           go-version: "1.22.x"
 
-      - name: Wait for database
-        run: sleep 5
+      # Extra protection: wait until Postgres actually works
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..15}; do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            echo "Postgres is not ready yet..."
+            sleep 1
+          done
 
       - name: Start Backend
         env:
@@ -70,8 +76,21 @@ jobs:
           DB_PASSWORD: test
           DB_NAME: taskboard
         run: |
-          go run main.go &
-          sleep 15
+          echo "Starting backend..."
+          go run main.go > backend.log 2>&1 &
+          sleep 5
+          echo "Backend logs:"
+          cat backend.log
+
+      # ACTUAL HEALTH CHECK FOR BACKEND
+      - name: Wait for Backend to be ready
+        run: |
+          echo "Waiting for backend health..."
+          for i in {1..30}; do
+            curl -s http://localhost:8080/api/tasks && break
+            echo "Backend not ready yet..."
+            sleep 1
+          done
 
       - name: Run E2E Tests
         run: go test ./tests/e2e/... -v
