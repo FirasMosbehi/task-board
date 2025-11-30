@@ -22,39 +22,6 @@ linters:
     - exportloopref
     - nolintlint
 
-  settings:
-    govet:
-      enable-all: true
-      disable:
-        - fieldalignment
-
-    gocritic:
-      enabled-tags:
-        - performance
-        - diagnostic
-        - style
-      disabled-checks:
-        - regexpMust
-
-    gofmt:
-      simplify: true
-
-    misspell:
-      locale: US
-
-    gosec:
-      excludes:
-        - G404
-        - G101
-
-    revive:
-      rules:
-        - name: indent-error-flow
-        - name: early-return
-        - name: unused-parameter
-        - name: error-return
-        - name: exported
-
 issues:
   exclude-use-default: false
 
