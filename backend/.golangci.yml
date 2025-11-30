@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 5m
   tests: true
@@ -72,9 +70,6 @@ issues:
 
     - linters: [staticcheck]
       text: "SA5011"
-
-skip-files:
-  - "tests/e2e/*"
 
 output:
   formats:
