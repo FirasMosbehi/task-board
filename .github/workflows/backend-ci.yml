@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-binary
-          path: backend/taskboard-backend      
+          path: taskboard-backend      
 
   docker-build-push:
     runs-on: ubuntu-latest
