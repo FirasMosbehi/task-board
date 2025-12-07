@@ -3,12 +3,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // DB is the global GORM database connection used throughout the backend.
@@ -28,7 +34,20 @@ func initDB() {
 		dbHost, dbPort, dbUser, dbPassword, dbName,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// Create a custom logger for GORM that records metrics
+	customLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond, // Slow SQL threshold
+			LogLevel:                  logger.Info,            // Log level
+			IgnoreRecordNotFoundError: false,                  // Log record not found error
+			Colorful:                  true,                   // Disable color
+		},
+	)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: customLogger,
+	})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
@@ -37,8 +56,35 @@ func initDB() {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 
+	// Add OpenTelemetry instrumentation to GORM
+	if err := db.Use(otelgorm.NewPlugin()); err != nil {
+		log.Fatalf("failed to add OTEL instrumentation to GORM: %v", err)
+	}
+
+	// Configure connection pool
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get database connection: %v", err)
+	}
+
+	// Set connection pool settings
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetMaxOpenConns(20)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
 	DB = db
 	log.Println("✅ Connected to PostgreSQL and migrated")
+
+	// Record initial DB metrics if meter is initialized
+	if meter != nil {
+		ctx := context.Background()
+		dbConnectionsOpen.Add(ctx, int64(sqlDB.Stats().OpenConnections),
+			metric.WithAttributes(
+				attribute.String("db_name", dbName),
+				attribute.String("db_host", dbHost),
+			),
+		)
+	}
 }
 
 // getEnv returns an environment variable value or a default

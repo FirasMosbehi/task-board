@@ -12,10 +12,19 @@ import (
 // getTasks returns all tasks ordered by creation date (newest first).
 func getTasks(c *gin.Context) {
 	var tasks []Task
-	if err := DB.Order("created_at desc").Find(&tasks).Error; err != nil {
+
+	err := TrackDBOperation(c.Request.Context(), "query_all_tasks", func() error {
+		return DB.Order("created_at desc").Find(&tasks).Error
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tasks"})
 		return
 	}
+
+	// Update metrics after successful retrieval
+	go UpdateTaskMetrics(c.Request.Context())
+
 	c.JSON(http.StatusOK, tasks)
 }
 
@@ -37,10 +46,17 @@ func createTask(c *gin.Context) {
 		Completed: false,
 	}
 
-	if err := DB.Create(&task).Error; err != nil {
+	err := TrackDBOperation(c.Request.Context(), "create_task", func() error {
+		return DB.Create(&task).Error
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
 		return
 	}
+
+	// Update metrics after successful creation
+	go UpdateTaskMetrics(c.Request.Context())
 
 	c.JSON(http.StatusCreated, task)
 }
@@ -61,7 +77,11 @@ func updateTask(c *gin.Context) {
 	}
 
 	var task Task
-	if err := DB.First(&task, id).Error; err != nil {
+	err = TrackDBOperation(c.Request.Context(), "find_task", func() error {
+		return DB.First(&task, id).Error
+	})
+	
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
@@ -71,7 +91,7 @@ func updateTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
 		return
 	}
-
+	
 	if input.Title != nil {
 		task.Title = *input.Title
 	}
@@ -80,11 +100,18 @@ func updateTask(c *gin.Context) {
 		task.Completed = *input.Completed
 	}
 
-	if err := DB.Save(&task).Error; err != nil {
+	err = TrackDBOperation(c.Request.Context(), "update_task", func() error {
+		return DB.Save(&task).Error
+	})
+	
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
 		return
 	}
-
+	
+	// Update metrics after successful update
+	go UpdateTaskMetrics(c.Request.Context())
+	
 	c.JSON(http.StatusOK, task)
 }
 
@@ -97,10 +124,17 @@ func deleteTask(c *gin.Context) {
 		return
 	}
 
-	if err := DB.Delete(&Task{}, id).Error; err != nil {
+	err = TrackDBOperation(c.Request.Context(), "delete_task", func() error {
+		return DB.Delete(&Task{}, id).Error
+	})
+	
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
 		return
 	}
+	
+	// Update metrics after successful deletion
+	go UpdateTaskMetrics(c.Request.Context())
 
 	c.Status(http.StatusNoContent)
 }
