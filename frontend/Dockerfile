@@ -35,4 +35,5 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Replace env.js at container start
+CMD sh -c "echo \"window._env_ = { VITE_API_URL: '${VITE_API_URL}' };\" > /usr/share/nginx/html/env.js && nginx -g 'daemon off;'"

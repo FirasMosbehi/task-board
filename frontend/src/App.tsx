@@ -7,7 +7,8 @@ type Task = {
   created_at: string
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+//@ts-expect-error any
+const API_URL = window._env_?.VITE_API_URL || 'http://localhost:8080';
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([])
